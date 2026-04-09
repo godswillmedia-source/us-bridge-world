@@ -1,8 +1,8 @@
 # Dependencies
 node_modules/
 
-# Build outputs
-dist/
+# Build outputs (kept in git for Render deploy)
+# dist/
 *.tsbuildinfo
 
 # Environment
