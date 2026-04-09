@@ -9,6 +9,7 @@ export class AgentState extends Schema {
     @type('string') action: string;
     @type('string') currentTask: string;
     @type('string') thought: string;
+    @type('number') spriteIndex: number;
 
     constructor(id: string, name: string) {
         super();
@@ -20,6 +21,7 @@ export class AgentState extends Schema {
         this.action = 'idle';
         this.currentTask = '';
         this.thought = '';
+        this.spriteIndex = 0;
     }
 }
 

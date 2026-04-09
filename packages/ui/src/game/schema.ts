@@ -9,6 +9,7 @@ export class AgentState extends Schema {
     declare action: string;
     declare currentTask: string;
     declare thought: string;
+    declare spriteIndex: number;
 }
 
 type("string")(AgentState.prototype, "id");
@@ -19,6 +20,7 @@ type("string")(AgentState.prototype, "direction");
 type("string")(AgentState.prototype, "action");
 type("string")(AgentState.prototype, "currentTask");
 type("string")(AgentState.prototype, "thought");
+type("number")(AgentState.prototype, "spriteIndex");
 
 
 export class OfficeState extends Schema {

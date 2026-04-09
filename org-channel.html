@@ -1,0 +1,936 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>US Bridge -- Org Channel</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --bg-primary: #0a0e17;
+    --bg-secondary: #111827;
+    --bg-card: #1a2233;
+    --bg-card-hover: #1f2a3d;
+    --border: #2a3548;
+    --text-primary: #e2e8f0;
+    --text-secondary: #8892a4;
+    --text-muted: #5a6478;
+    --accent: #3b82f6;
+    --accent-glow: rgba(59, 130, 246, 0.15);
+    --green: #22c55e;
+    --green-glow: rgba(34, 197, 94, 0.3);
+    --red: #ef4444;
+    --yellow: #eab308;
+    --purple: #a855f7;
+    --cyan: #06b6d4;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .login-screen {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    height: 100dvh;
+    padding: 24px;
+    gap: 32px;
+  }
+
+  .login-screen.hidden { display: none; }
+
+  .login-logo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .login-logo-icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 700;
+    color: white;
+    letter-spacing: -1px;
+  }
+
+  .login-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text-primary);
+  }
+
+  .login-subtitle {
+    font-size: 13px;
+    color: var(--text-muted);
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  .login-form {
+    width: 100%;
+    max-width: 360px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .login-form label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: -6px;
+  }
+
+  .login-form input {
+    width: 100%;
+    padding: 14px 16px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 15px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .login-form input:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .login-form input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .login-btn {
+    width: 100%;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    color: white;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+    margin-top: 4px;
+  }
+
+  .login-btn:hover { opacity: 0.9; }
+  .login-btn:active { transform: scale(0.98); }
+  .login-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .login-error {
+    color: var(--red);
+    font-size: 13px;
+    text-align: center;
+    min-height: 20px;
+  }
+
+  .chat-screen {
+    display: none;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .chat-screen.active { display: flex; }
+
+  .chat-header {
+    background: var(--bg-secondary);
+    border-bottom: 1px solid var(--border);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+
+  .back-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-card);
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 18px;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+
+  .back-btn:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--accent);
+    color: var(--text-primary);
+  }
+
+  .chat-header-info { flex: 1; min-width: 0; }
+
+  .chat-header-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .chat-header-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+
+  .agent-status {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .status-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+  }
+
+  .status-dot.online {
+    background: var(--green);
+    box-shadow: 0 0 6px var(--green-glow);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .status-dot.offline { background: var(--text-muted); }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  .realtime-indicator {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 10px;
+    color: var(--green);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+  }
+
+  .realtime-dot {
+    width: 6px;
+    height: 6px;
+    background: var(--green);
+    border-radius: 50%;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  .messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .messages::-webkit-scrollbar { width: 4px; }
+  .messages::-webkit-scrollbar-track { background: transparent; }
+  .messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  .msg {
+    max-width: 85%;
+    padding: 10px 14px;
+    border-radius: 16px;
+    font-size: 14px;
+    line-height: 1.5;
+    animation: msgIn 0.25s ease-out;
+    word-break: break-word;
+  }
+
+  @keyframes msgIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msg.owner {
+    align-self: flex-end;
+    background: linear-gradient(135deg, var(--accent), #2563eb);
+    color: white;
+    border-bottom-right-radius: 4px;
+  }
+
+  .msg.agent {
+    align-self: flex-start;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-primary);
+    border-bottom-left-radius: 4px;
+  }
+
+  .msg.system {
+    align-self: center;
+    background: rgba(168, 85, 247, 0.1);
+    border: 1px solid rgba(168, 85, 247, 0.2);
+    color: var(--purple);
+    font-size: 12px;
+    border-radius: 8px;
+    max-width: 90%;
+    text-align: center;
+  }
+
+  .msg.command {
+    align-self: flex-end;
+    background: rgba(6, 182, 212, 0.1);
+    border: 1px solid rgba(6, 182, 212, 0.2);
+    color: var(--cyan);
+    border-bottom-right-radius: 4px;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 13px;
+  }
+
+  .msg-time {
+    font-size: 10px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    opacity: 0.7;
+  }
+
+  .msg.owner .msg-time { color: rgba(255,255,255,0.6); text-align: right; }
+  .msg.agent .msg-time { text-align: left; }
+
+  .msg-sender {
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 3px;
+    opacity: 0.7;
+  }
+
+  .msg.agent .msg-sender { color: var(--accent); }
+
+  .empty-chat {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    color: var(--text-muted);
+    padding: 40px;
+  }
+
+  .empty-chat-icon { font-size: 40px; opacity: 0.3; }
+
+  .empty-chat-text {
+    font-size: 14px;
+    text-align: center;
+    line-height: 1.5;
+  }
+
+  .input-bar {
+    background: var(--bg-secondary);
+    border-top: 1px solid var(--border);
+    padding: 10px 12px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    flex-shrink: 0;
+    padding-bottom: max(10px, env(safe-area-inset-bottom));
+  }
+
+  .input-wrapper { flex: 1; position: relative; }
+
+  .input-field {
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--bg-card);
+    color: var(--text-primary);
+    font-size: 15px;
+    outline: none;
+    resize: none;
+    max-height: 120px;
+    line-height: 1.4;
+    font-family: inherit;
+    transition: border-color 0.2s;
+  }
+
+  .input-field:focus { border-color: var(--accent); }
+  .input-field::placeholder { color: var(--text-muted); }
+
+  .send-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, var(--accent), var(--purple));
+    color: white;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .send-btn:hover { opacity: 0.9; }
+  .send-btn:active { transform: scale(0.92); }
+  .send-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .date-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 12px 0;
+  }
+
+  .date-divider::before,
+  .date-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  .date-divider span {
+    font-size: 10px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .connection-banner {
+    display: none;
+    padding: 8px 16px;
+    font-size: 12px;
+    text-align: center;
+    font-weight: 500;
+  }
+
+  .connection-banner.disconnected {
+    display: block;
+    background: rgba(239, 68, 68, 0.1);
+    border-bottom: 1px solid rgba(239, 68, 68, 0.2);
+    color: var(--red);
+  }
+
+  .connection-banner.reconnecting {
+    display: block;
+    background: rgba(234, 179, 8, 0.1);
+    border-bottom: 1px solid rgba(234, 179, 8, 0.2);
+    color: var(--yellow);
+  }
+
+  .loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px;
+  }
+
+  .spinner {
+    width: 28px;
+    height: 28px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  @media (min-width: 600px) {
+    .chat-screen {
+      max-width: 480px;
+      margin: 0 auto;
+      border-left: 1px solid var(--border);
+      border-right: 1px solid var(--border);
+    }
+    .login-screen { max-width: 480px; margin: 0 auto; }
+  }
+</style>
+</head>
+<body>
+
+<div class="login-screen" id="login-screen">
+  <div class="login-logo">
+    <div class="login-logo-icon">US</div>
+    <div class="login-title">Org Channel</div>
+    <div class="login-subtitle">Private communication channel<br>between you and your agent</div>
+  </div>
+  <form class="login-form" id="login-form">
+    <label>Organization ID</label>
+    <input type="text" id="input-org-id" placeholder="your-org-id" autocomplete="username" autocapitalize="none" autocorrect="off" required>
+    <label>Cert ID / Passphrase</label>
+    <input type="password" id="input-cert-id" placeholder="USC-T2-your-cert" autocomplete="current-password" required>
+    <button type="submit" class="login-btn" id="login-btn">Connect to Channel</button>
+    <div class="login-error" id="login-error"></div>
+  </form>
+</div>
+
+<div class="chat-screen" id="chat-screen">
+  <div class="connection-banner" id="connection-banner"></div>
+  <div class="chat-header">
+    <div class="back-btn" id="back-btn" title="Disconnect">&#8592;</div>
+    <div class="chat-header-info">
+      <div class="chat-header-name" id="header-name">--</div>
+      <div class="chat-header-meta">
+        <div class="agent-status">
+          <div class="status-dot" id="agent-status-dot"></div>
+          <span id="agent-status-text">checking...</span>
+        </div>
+        <span>&#183;</span>
+        <div class="realtime-indicator" id="realtime-indicator">
+          <div class="realtime-dot"></div>
+          LIVE
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="loading" id="messages-loading">
+      <div class="spinner"></div>
+    </div>
+  </div>
+
+  <div class="input-bar">
+    <div class="input-wrapper">
+      <textarea class="input-field" id="input-message" rows="1" placeholder="Message your agent..." maxlength="4000"></textarea>
+    </div>
+    <button class="send-btn" id="send-btn" title="Send">&#9654;</button>
+  </div>
+</div>
+
+<script>
+(function() {
+  var SUPABASE_URL = 'https://mitfencehbiyvyghdkpt.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1pdGZlbmNlaGJpeXZ5Z2hka3B0Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzEzNzExNTIsImV4cCI6MjA4Njk0NzE1Mn0.TYPcCeo6jCo_7sU8YFeY56iGC1UoOYO2kmth0HRf9ys';
+
+  var client = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  var realtimeChannel = null;
+
+  var state = {
+    orgId: null,
+    certId: null,
+    orgName: null,
+    agentCerts: [],
+    connected: false,
+    isOwner: false
+  };
+
+  var loginScreen = document.getElementById('login-screen');
+  var chatScreen = document.getElementById('chat-screen');
+  var loginForm = document.getElementById('login-form');
+  var loginBtn = document.getElementById('login-btn');
+  var loginError = document.getElementById('login-error');
+  var inputOrgId = document.getElementById('input-org-id');
+  var inputCertId = document.getElementById('input-cert-id');
+  var headerName = document.getElementById('header-name');
+  var messagesEl = document.getElementById('messages');
+  var messagesLoading = document.getElementById('messages-loading');
+  var inputMessage = document.getElementById('input-message');
+  var sendBtn = document.getElementById('send-btn');
+  var backBtn = document.getElementById('back-btn');
+  var agentStatusDot = document.getElementById('agent-status-dot');
+  var agentStatusText = document.getElementById('agent-status-text');
+  var connectionBanner = document.getElementById('connection-banner');
+  var realtimeIndicator = document.getElementById('realtime-indicator');
+
+  inputMessage.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+  });
+
+  loginForm.addEventListener('submit', async function(e) {
+    e.preventDefault();
+    loginError.textContent = '';
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'Connecting...';
+
+    var orgId = inputOrgId.value.trim().toLowerCase();
+    var certId = inputCertId.value.trim();
+
+    if (!orgId || !certId) {
+      showLoginError('Please fill in all fields');
+      return;
+    }
+
+    try {
+      var resp = await client
+        .from('us_orgs')
+        .select('*')
+        .eq('org_id', orgId)
+        .single();
+
+      if (resp.error || !resp.data) {
+        showLoginError('Organization not found. Check your Org ID.');
+        return;
+      }
+
+      var org = resp.data;
+      var isOwner = (org.owner_cert_id === certId);
+      var isAgent = (org.agent_cert_ids || []).includes(certId);
+
+      if (!isOwner && !isAgent) {
+        showLoginError('Invalid credentials. Access denied.');
+        return;
+      }
+
+      state.orgId = orgId;
+      state.certId = certId;
+      state.orgName = org.org_name;
+      state.agentCerts = org.agent_cert_ids || [];
+      state.connected = true;
+      state.isOwner = isOwner;
+
+      sessionStorage.setItem('org_channel_org', orgId);
+      sessionStorage.setItem('org_channel_cert', certId);
+
+      enterChat();
+    } catch (err) {
+      showLoginError('Connection failed. Try again.');
+      console.error(err);
+    }
+  });
+
+  function showLoginError(msg) {
+    loginError.textContent = msg;
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'Connect to Channel';
+  }
+
+  async function enterChat() {
+    loginScreen.classList.add('hidden');
+    chatScreen.classList.add('active');
+    headerName.textContent = state.orgName || state.orgId;
+
+    await loadMessages();
+    subscribeRealtime();
+    checkAgentStatus();
+    setInterval(checkAgentStatus, 30000);
+    inputMessage.focus();
+  }
+
+  async function loadMessages() {
+    messagesLoading.style.display = 'flex';
+
+    try {
+      var resp = await client
+        .from('us_org_messages')
+        .select('*')
+        .eq('org_id', state.orgId)
+        .order('created_at', { ascending: true })
+        .limit(200);
+
+      messagesLoading.style.display = 'none';
+
+      if (resp.error) {
+        console.error('Load error:', resp.error);
+        return;
+      }
+
+      if (!resp.data || resp.data.length === 0) {
+        showEmptyChat();
+        return;
+      }
+
+      renderMessages(resp.data);
+      scrollToBottom(false);
+    } catch (err) {
+      messagesLoading.style.display = 'none';
+      console.error(err);
+    }
+  }
+
+  function showEmptyChat() {
+    messagesEl.innerHTML = '<div class="empty-chat">' +
+      '<div class="empty-chat-icon">&#9672;</div>' +
+      '<div class="empty-chat-text">No messages yet.<br>Send a message to your agent to get started.</div>' +
+      '</div>';
+  }
+
+  function renderMessages(msgs) {
+    messagesEl.innerHTML = '';
+    var lastDate = null;
+
+    msgs.forEach(function(msg) {
+      var msgDate = new Date(msg.created_at).toLocaleDateString();
+      if (msgDate !== lastDate) {
+        lastDate = msgDate;
+        var divider = document.createElement('div');
+        divider.className = 'date-divider';
+        divider.innerHTML = '<span>' + formatDate(msg.created_at) + '</span>';
+        messagesEl.appendChild(divider);
+      }
+      messagesEl.appendChild(createMsgEl(msg, false));
+    });
+  }
+
+  function createMsgEl(msg, isNew) {
+    var isSystem = (msg.message_type === 'status' || msg.message_type === 'system');
+    var isCommand = (msg.message_type === 'command');
+    var senderType = isSystem ? 'system' : isCommand ? 'command' :
+      (msg.sender === 'owner') ? 'owner' : 'agent';
+
+    var el = document.createElement('div');
+    el.className = 'msg ' + senderType;
+    if (isNew) el.style.animation = 'msgIn 0.3s ease-out';
+
+    var html = '';
+    if (senderType === 'agent') {
+      html += '<div class="msg-sender">' + escapeHtml(msg.sender) + '</div>';
+    }
+    html += '<div class="msg-body">' + formatMessage(msg.message) + '</div>';
+    html += '<div class="msg-time">' + formatTime(msg.created_at) + '</div>';
+
+    el.innerHTML = html;
+    return el;
+  }
+
+  function subscribeRealtime() {
+    if (realtimeChannel) {
+      client.removeChannel(realtimeChannel);
+    }
+
+    realtimeChannel = client
+      .channel('org-' + state.orgId)
+      .on('postgres_changes', {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'us_org_messages',
+        filter: 'org_id=eq.' + state.orgId
+      }, function(payload) {
+        handleNewMessage(payload.new);
+      })
+      .subscribe(function(status) {
+        if (status === 'SUBSCRIBED') {
+          realtimeIndicator.style.display = 'flex';
+          connectionBanner.style.display = 'none';
+          connectionBanner.className = 'connection-banner';
+        } else if (status === 'CLOSED' || status === 'CHANNEL_ERROR') {
+          realtimeIndicator.style.display = 'none';
+          connectionBanner.textContent = 'Reconnecting...';
+          connectionBanner.className = 'connection-banner reconnecting';
+        }
+      });
+  }
+
+  function handleNewMessage(msg) {
+    var emptyChat = messagesEl.querySelector('.empty-chat');
+    if (emptyChat) emptyChat.remove();
+
+    var dividers = messagesEl.querySelectorAll('.date-divider');
+    var needsDivider = true;
+    if (dividers.length > 0) {
+      var lastDivider = dividers[dividers.length - 1];
+      var lastDividerText = lastDivider.querySelector('span').textContent;
+      if (lastDividerText === formatDate(msg.created_at)) {
+        needsDivider = false;
+      }
+    }
+
+    if (needsDivider) {
+      var divider = document.createElement('div');
+      divider.className = 'date-divider';
+      divider.innerHTML = '<span>' + formatDate(msg.created_at) + '</span>';
+      messagesEl.appendChild(divider);
+    }
+
+    messagesEl.appendChild(createMsgEl(msg, true));
+    scrollToBottom(true);
+  }
+
+  async function sendMessage() {
+    var text = inputMessage.value.trim();
+    if (!text) return;
+
+    sendBtn.disabled = true;
+    inputMessage.value = '';
+    inputMessage.style.height = 'auto';
+
+    var msgType = 'text';
+    if (text.startsWith('/')) {
+      msgType = 'command';
+    }
+
+    try {
+      var resp = await client
+        .from('us_org_messages')
+        .insert({
+          org_id: state.orgId,
+          sender: state.isOwner ? 'owner' : state.certId,
+          message: text,
+          message_type: msgType,
+          metadata: {}
+        });
+
+      if (resp.error) {
+        console.error('Send error:', resp.error);
+        inputMessage.value = text;
+      }
+    } catch (err) {
+      console.error(err);
+      inputMessage.value = text;
+    }
+
+    sendBtn.disabled = false;
+    inputMessage.focus();
+  }
+
+  sendBtn.addEventListener('click', sendMessage);
+
+  inputMessage.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      sendMessage();
+    }
+  });
+
+  async function checkAgentStatus() {
+    try {
+      var agentCerts = state.agentCerts;
+      if (!agentCerts.length) {
+        agentStatusDot.className = 'status-dot offline';
+        agentStatusText.textContent = 'no agents configured';
+        return;
+      }
+
+      var resp = await client
+        .from('us_sessions')
+        .select('*')
+        .in('cert_id', agentCerts)
+        .order('last_seen_at', { ascending: false })
+        .limit(1);
+
+      if (resp.error || !resp.data || resp.data.length === 0) {
+        agentStatusDot.className = 'status-dot offline';
+        agentStatusText.textContent = 'agent offline';
+        return;
+      }
+
+      var session = resp.data[0];
+      var lastSeen = new Date(session.last_seen_at || session.connected_at);
+      var now = new Date();
+      var diffMin = (now - lastSeen) / 60000;
+
+      if (session.status === 'connected' && diffMin < 5) {
+        agentStatusDot.className = 'status-dot online';
+        agentStatusText.textContent = 'agent online';
+      } else if (diffMin < 15) {
+        agentStatusDot.className = 'status-dot offline';
+        agentStatusText.textContent = 'last seen ' + Math.round(diffMin) + 'm ago';
+      } else {
+        agentStatusDot.className = 'status-dot offline';
+        agentStatusText.textContent = 'agent offline';
+      }
+    } catch (err) {
+      agentStatusDot.className = 'status-dot offline';
+      agentStatusText.textContent = 'status unknown';
+    }
+  }
+
+  backBtn.addEventListener('click', function() {
+    if (realtimeChannel) {
+      client.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+    }
+    state.connected = false;
+    sessionStorage.removeItem('org_channel_org');
+    sessionStorage.removeItem('org_channel_cert');
+
+    chatScreen.classList.remove('active');
+    loginScreen.classList.remove('hidden');
+    loginError.textContent = '';
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'Connect to Channel';
+  });
+
+  function scrollToBottom(smooth) {
+    requestAnimationFrame(function() {
+      messagesEl.scrollTo({
+        top: messagesEl.scrollHeight,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    });
+  }
+
+  function formatTime(ts) {
+    var d = new Date(ts);
+    return d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  }
+
+  function formatDate(ts) {
+    var d = new Date(ts);
+    var now = new Date();
+    var today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    var msgDay = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    var diff = (today - msgDay) / 86400000;
+
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
+  function formatMessage(text) {
+    var escaped = escapeHtml(text);
+    escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    escaped = escaped.replace(/`(.*?)`/g, '<code style="background:rgba(59,130,246,0.15);padding:1px 4px;border-radius:3px;font-family:monospace;font-size:12px;">$1</code>');
+    escaped = escaped.replace(/\n/g, '<br>');
+    return escaped;
+  }
+
+  function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
+
+  (function autoReconnect() {
+    var savedOrg = sessionStorage.getItem('org_channel_org');
+    var savedCert = sessionStorage.getItem('org_channel_cert');
+    if (savedOrg && savedCert) {
+      inputOrgId.value = savedOrg;
+      inputCertId.value = savedCert;
+      loginForm.dispatchEvent(new Event('submit'));
+    }
+  })();
+})();
+</script>
+</body>
+</html>

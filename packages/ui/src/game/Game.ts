@@ -20,15 +20,15 @@ export class OfficeScene extends Phaser.Scene {
         super('OfficeScene');
     }
 
+    private charCount = 6; // Number of available character sprites
+
     preload() {
-        this.load.spritesheet('char_0', '/assets/characters/char_0.png', {
-            frameWidth: 16,
-            frameHeight: 32
-        });
-        this.load.spritesheet('char_1', '/assets/characters/char_1.png', {
-            frameWidth: 16,
-            frameHeight: 32
-        });
+        for (let i = 0; i < this.charCount; i++) {
+            this.load.spritesheet(`char_${i}`, `/assets/characters/char_${i}.png`, {
+                frameWidth: 16,
+                frameHeight: 32
+            });
+        }
     }
 
     create() {
@@ -40,20 +40,16 @@ export class OfficeScene extends Phaser.Scene {
 
             let hasAnims = false;
 
-            // Create animations for character 0
-            if (this.textures.exists('char_0')) {
-                const anims = this.anims;
-                anims.create({ key: 'char_0-walk-down', frames: anims.generateFrameNumbers('char_0', { start: 0, end: 2 }), frameRate: 8, repeat: -1 });
-                anims.create({ key: 'char_0-walk-up', frames: anims.generateFrameNumbers('char_0', { start: 7, end: 9 }), frameRate: 8, repeat: -1 });
-                anims.create({ key: 'char_0-walk-right', frames: anims.generateFrameNumbers('char_0', { start: 14, end: 16 }), frameRate: 8, repeat: -1 });
-                hasAnims = true;
-            }
-            // Create animations for character 1
-            if (this.textures.exists('char_1')) {
-                const anims = this.anims;
-                anims.create({ key: 'char_1-walk-down', frames: anims.generateFrameNumbers('char_1', { start: 0, end: 2 }), frameRate: 8, repeat: -1 });
-                anims.create({ key: 'char_1-walk-up', frames: anims.generateFrameNumbers('char_1', { start: 7, end: 9 }), frameRate: 8, repeat: -1 });
-                anims.create({ key: 'char_1-walk-right', frames: anims.generateFrameNumbers('char_1', { start: 14, end: 16 }), frameRate: 8, repeat: -1 });
+            // Create animations for all available character sprites
+            for (let i = 0; i < this.charCount; i++) {
+                const key = `char_${i}`;
+                if (this.textures.exists(key)) {
+                    const anims = this.anims;
+                    anims.create({ key: `${key}-walk-down`, frames: anims.generateFrameNumbers(key, { start: 0, end: 2 }), frameRate: 8, repeat: -1 });
+                    anims.create({ key: `${key}-walk-up`, frames: anims.generateFrameNumbers(key, { start: 7, end: 9 }), frameRate: 8, repeat: -1 });
+                    anims.create({ key: `${key}-walk-right`, frames: anims.generateFrameNumbers(key, { start: 14, end: 16 }), frameRate: 8, repeat: -1 });
+                    hasAnims = true;
+                }
             }
 
             console.log("Animations created: ", hasAnims);
@@ -390,6 +386,59 @@ export class OfficeScene extends Phaser.Scene {
                 this.cursors = this.input.keyboard.createCursorKeys();
             }
 
+            // --- DRAG TO PAN ---
+            let dragOriginX = 0;
+            let dragOriginY = 0;
+            let lastDragX = 0;
+            let lastDragY = 0;
+            let isPointerDown = false;
+            let hasDragged = false;
+            const DRAG_THRESHOLD = 8; // pixels before drag starts
+
+            this.input.on('pointerdown', (pointer: Phaser.Input.Pointer, gameObjects: any[]) => {
+                if (gameObjects.length === 0) {
+                    isPointerDown = true;
+                    hasDragged = false;
+                    dragOriginX = pointer.x;
+                    dragOriginY = pointer.y;
+                    lastDragX = pointer.x;
+                    lastDragY = pointer.y;
+                }
+            });
+
+            this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+                if (!isPointerDown || !pointer.isDown) return;
+
+                const dx = pointer.x - dragOriginX;
+                const dy = pointer.y - dragOriginY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                // Only start panning after passing threshold
+                if (dist > DRAG_THRESHOLD) {
+                    hasDragged = true;
+                    const cam = this.cameras.main;
+                    cam.scrollX -= (pointer.x - lastDragX) / cam.zoom;
+                    cam.scrollY -= (pointer.y - lastDragY) / cam.zoom;
+                    this.followTarget = null;
+                }
+                lastDragX = pointer.x;
+                lastDragY = pointer.y;
+            });
+
+            this.input.on('pointerup', (pointer: Phaser.Input.Pointer, gameObjects: any[]) => {
+                // Only unfocus on a clean click (no drag) on empty space
+                if (!hasDragged && isPointerDown && gameObjects.length === 0) {
+                    if (this.followTarget) {
+                        const ring = this.followTarget.getAt(0) as Phaser.GameObjects.Graphics;
+                        ring?.setVisible(false);
+                        this.followTarget = null;
+                        eventBus.dispatchEvent(new CustomEvent('agent-focus', { detail: null }));
+                    }
+                }
+                isPointerDown = false;
+                hasDragged = false;
+            });
+
             this.connectToServer();
         } catch (e) {
             console.error("CRITICAL PHASER ERROR", e);
@@ -398,9 +447,14 @@ export class OfficeScene extends Phaser.Scene {
 
     async connectToServer() {
         try {
-            console.log("Connecting to Colyseus...");
-            const client = new Colyseus.Client('ws://localhost:3000');
-            this.room = await client.joinOrCreate('office');
+            // Connect to public_square (US Bridge) by default, fall back to office
+            const roomName = new URLSearchParams(window.location.search).get('room') || 'public_square';
+            console.log(`Connecting to Colyseus room: ${roomName}...`);
+            const wsUrl = window.location.hostname === 'localhost'
+                ? 'ws://localhost:3000'
+                : 'wss://us-bridge-world.onrender.com';
+            const client = new Colyseus.Client(wsUrl);
+            this.room = await client.joinOrCreate(roomName);
 
             console.log("Room joined successfully!", this.room.sessionId);
             this.statusText.setText('Colyseus Sync: Connected (Waiting for state...)').setColor('#aaffaa');
@@ -422,8 +476,9 @@ export class OfficeScene extends Phaser.Scene {
                     const container = this.add.container(agent.x * 16, agent.y * 16);
 
                     let sprite;
-                    let charKey = 'char_0';
-                    if (agent.name.includes('Bob')) charKey = 'char_1';
+                    // Use spriteIndex from server if available, otherwise derive from agent index
+                    const spriteIdx = agent.spriteIndex ?? (Array.from((state.agents as any).keys()).indexOf(sessionId) % this.charCount);
+                    let charKey = `char_${Math.abs(spriteIdx) % this.charCount}`;
 
                     if (this.textures.exists(charKey)) {
                         sprite = this.add.sprite(0, -8, charKey, 0);
@@ -465,13 +520,11 @@ export class OfficeScene extends Phaser.Scene {
                     container.setInteractive();
                     this.agentSprites.set(sessionId, container);
 
-                    // --- FOCUS MODE: Click to follow ---
+                    // --- FOCUS MODE: Click agent ---
                     container.on('pointerdown', () => {
                         if (this.followTarget === container) {
-                            // Unfollow on second click
-                            this.followTarget = null;
-                            focusRing.setVisible(false);
-                            eventBus.dispatchEvent(new CustomEvent('agent-focus', { detail: null }));
+                            // Second click on focused agent = open private chat
+                            eventBus.dispatchEvent(new CustomEvent('open-private-chat', { detail: { name: agent.name, id: sessionId } }));
                         } else {
                             // Unfollow previous
                             if (this.followTarget) {
@@ -480,7 +533,19 @@ export class OfficeScene extends Phaser.Scene {
                             }
                             this.followTarget = container;
                             focusRing.setVisible(true);
-                            eventBus.dispatchEvent(new CustomEvent('agent-focus', { detail: { name: agent.name, id: sessionId } }));
+                            // Pass screen position + sprite for card placement
+                            const cam = this.cameras.main;
+                            const screenX = (container.x - cam.worldView.x) * cam.zoom;
+                            const screenY = (container.y - cam.worldView.y) * cam.zoom;
+                            eventBus.dispatchEvent(new CustomEvent('agent-focus', {
+                                detail: {
+                                    name: agent.name,
+                                    id: sessionId,
+                                    screenX,
+                                    screenY,
+                                    spriteIndex: agent.spriteIndex ?? 0,
+                                }
+                            }));
                         }
                     });
 
@@ -497,6 +562,15 @@ export class OfficeScene extends Phaser.Scene {
                             onComplete: () => {
                                 if (sprite.type === 'Sprite') {
                                     (sprite as Phaser.GameObjects.Sprite).stop();
+                                }
+                                // Update card position if this agent is focused
+                                if (this.followTarget === container) {
+                                    const cam = this.cameras.main;
+                                    const sx = (container.x - cam.worldView.x) * cam.zoom;
+                                    const sy = (container.y - cam.worldView.y) * cam.zoom;
+                                    eventBus.dispatchEvent(new CustomEvent('agent-position', {
+                                        detail: { screenX: sx, screenY: sy }
+                                    }));
                                 }
                             }
                         });
@@ -565,20 +639,12 @@ export class OfficeScene extends Phaser.Scene {
     }
 
     update() {
-        // If following an agent, smoothly track them
-        if (this.followTarget) {
-            const cam = this.cameras.main;
-            const targetX = this.followTarget.x - cam.width / (2 * cam.zoom);
-            const targetY = this.followTarget.y - cam.height / (2 * cam.zoom);
-            cam.scrollX += (targetX - cam.scrollX) * 0.08;
-            cam.scrollY += (targetY - cam.scrollY) * 0.08;
-        } else {
-            const speed = 5;
-            if (this.cursors?.left.isDown) this.cameras.main.scrollX -= speed;
-            if (this.cursors?.right.isDown) this.cameras.main.scrollX += speed;
-            if (this.cursors?.up.isDown) this.cameras.main.scrollY -= speed;
-            if (this.cursors?.down.isDown) this.cameras.main.scrollY += speed;
-        }
+        // Arrow keys for panning
+        const speed = 5;
+        if (this.cursors?.left.isDown) this.cameras.main.scrollX -= speed;
+        if (this.cursors?.right.isDown) this.cameras.main.scrollX += speed;
+        if (this.cursors?.up.isDown) this.cameras.main.scrollY -= speed;
+        if (this.cursors?.down.isDown) this.cameras.main.scrollY += speed;
     }
 }
 
