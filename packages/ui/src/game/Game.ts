@@ -704,7 +704,9 @@ export function setupPhaser(parentId: string) {
         input: {
             keyboard: {
                 capture: [] // Don't capture ANY keys globally — let React inputs work
-            }
+            },
+            touch: true,
+            activePointers: 3, // Support multi-touch (2 fingers + 1 spare)
         }
     };
 

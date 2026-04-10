@@ -2,16 +2,17 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>US Bridge World</title>
     <style>
       body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; color: #fff; font-family: 'Inter', sans-serif; }
-      #phaser-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; }
+      #phaser-container { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 1; touch-action: none; }
+      canvas { touch-action: none; }
       #ui-root { position: absolute; top: 0; left: 0; right: 0; bottom: 0; z-index: 2; pointer-events: none; }
       /* Allow clicks to pass through empty UI space to Phaser */
       #ui-root > * { pointer-events: auto; }
     </style>
-    <script type="module" crossorigin src="/assets/index-DDDlamHe.js"></script>
+    <script type="module" crossorigin src="/assets/index-EST3b2Ts.js"></script>
   </head>
   <body>
     <div id="phaser-container"></div>
