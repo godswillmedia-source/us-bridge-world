@@ -145,6 +145,21 @@ export function AgentCard() {
             backdropFilter: 'blur(6px)',
             fontFamily: '-apple-system, sans-serif',
         }}>
+            {/* Close button */}
+            <button
+                onClick={(e) => { e.stopPropagation(); setVisible(false); setAgent(null); }}
+                style={{
+                    position: 'absolute', top: 6, right: 8,
+                    background: 'rgba(255,255,255,0.1)', border: 'none',
+                    color: '#8892a4', cursor: 'pointer', fontSize: 16,
+                    width: 24, height: 24, borderRadius: '50%',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    lineHeight: 1,
+                }}
+            >
+                ×
+            </button>
+
             {/* Header with avatar */}
             <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
                 {/* Avatar — single front-facing frame (16x32 scaled 3x) */}
