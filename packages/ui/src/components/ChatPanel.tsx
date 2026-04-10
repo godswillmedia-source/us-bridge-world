@@ -18,10 +18,19 @@ interface OrgMessage {
     created_at: string;
 }
 
+interface TeamMessage {
+    id: number;
+    sender: string;
+    summary: string;
+    changeType: string;
+    table: string;
+    time: string;
+}
+
 interface ChatMessage {
     sender: string;
     text: string;
-    source: 'public' | 'org' | 'system';
+    source: 'public' | 'org' | 'system' | 'team';
     target?: string | null;
     time?: string;
 }
@@ -30,11 +39,14 @@ export function ChatPanel() {
     const [messages, setMessages] = useState<ChatMessage[]>([
         { sender: 'System', text: 'Bridge connected.', source: 'system' }
     ]);
+    const [teamMessages, setTeamMessages] = useState<TeamMessage[]>([]);
+    const [activeTab, setActiveTab] = useState<'chat' | 'team'>('chat');
     const [input, setInput] = useState('');
     const [filter, setFilter] = useState<string | null>(null); // null = all, cert_id = private
     const [orgId, setOrgId] = useState<string | null>(null);
     const [orgAgents, setOrgAgents] = useState<string[]>([]);
     const endRef = useRef<HTMLDivElement>(null);
+    const teamEndRef = useRef<HTMLDivElement>(null);
     const wsRef = useRef<WebSocket | null>(null);
 
     // Load org info on mount
@@ -55,6 +67,25 @@ export function ChatPanel() {
         eventBus.addEventListener('chat-message', handleChat);
         return () => eventBus.removeEventListener('chat-message', handleChat);
     }, []);
+
+    // Listen for team messages from Colyseus (internal bridge)
+    useEffect(() => {
+        const handleTeam = (e: any) => {
+            const detail = e.detail;
+            setTeamMessages(prev => {
+                // Dedupe by id
+                if (prev.some(m => m.id === detail.id)) return prev;
+                return [...prev, detail];
+            });
+        };
+        eventBus.addEventListener('team-message', handleTeam);
+        return () => eventBus.removeEventListener('team-message', handleTeam);
+    }, []);
+
+    // Auto-scroll team tab
+    useEffect(() => {
+        teamEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [teamMessages]);
 
     // Listen for agent focus — clicking agent filters to private chat
     useEffect(() => {
@@ -225,110 +256,190 @@ export function ChatPanel() {
             backdropFilter: 'blur(8px)',
             zIndex: 15,
         }}>
-            {/* Header */}
+            {/* Header with tabs */}
             <div style={{
-                padding: '10px 14px',
+                padding: '8px 14px 0',
                 borderBottom: '1px solid rgba(255,255,255,0.1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ fontWeight: 600, fontSize: 14 }}>
-                        {filter ? `Private: ${getAgentName(filter)}` : 'Office Chat'}
-                    </span>
-                    {filter && (
-                        <div style={{
-                            width: 6, height: 6, borderRadius: '50%',
-                            backgroundColor: '#22c55e',
-                        }} />
-                    )}
-                </div>
-                <div style={{ display: 'flex', gap: 6 }}>
-                    {filter && (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <div style={{ display: 'flex', gap: 0 }}>
                         <button
-                            onClick={() => setFilter(null)}
+                            onClick={() => setActiveTab('chat')}
                             style={{
-                                background: 'rgba(255,255,255,0.1)', border: 'none',
-                                color: '#8892a4', cursor: 'pointer', fontSize: 11,
-                                padding: '2px 8px', borderRadius: 4,
+                                background: activeTab === 'chat' ? 'rgba(59,130,246,0.2)' : 'transparent',
+                                border: 'none',
+                                borderBottom: activeTab === 'chat' ? '2px solid #3b82f6' : '2px solid transparent',
+                                color: activeTab === 'chat' ? '#3b82f6' : '#5a6478',
+                                cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                                padding: '4px 12px',
                             }}
                         >
-                            All
+                            Chat
                         </button>
-                    )}
-                    {/* Agent filter buttons */}
-                    {orgAgents.slice(0, 4).map(cert => (
                         <button
-                            key={cert}
-                            onClick={() => setFilter(filter === cert ? null : cert)}
+                            onClick={() => setActiveTab('team')}
                             style={{
-                                background: filter === cert ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.05)',
-                                border: filter === cert ? '1px solid rgba(59,130,246,0.5)' : '1px solid transparent',
-                                color: filter === cert ? '#3b82f6' : '#5a6478',
-                                cursor: 'pointer', fontSize: 9,
-                                padding: '2px 6px', borderRadius: 4,
+                                background: activeTab === 'team' ? 'rgba(168,85,247,0.2)' : 'transparent',
+                                border: 'none',
+                                borderBottom: activeTab === 'team' ? '2px solid #a855f7' : '2px solid transparent',
+                                color: activeTab === 'team' ? '#a855f7' : '#5a6478',
+                                cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                                padding: '4px 12px',
+                                display: 'flex', alignItems: 'center', gap: 4,
                             }}
                         >
-                            {getAgentName(cert)}
+                            Team
+                            {teamMessages.length > 0 && activeTab !== 'team' && (
+                                <span style={{
+                                    width: 6, height: 6, borderRadius: '50%',
+                                    backgroundColor: '#a855f7', display: 'inline-block',
+                                }} />
+                            )}
                         </button>
-                    ))}
+                    </div>
+                    <div style={{ display: 'flex', gap: 6 }}>
+                        {activeTab === 'chat' && filter && (
+                            <button
+                                onClick={() => setFilter(null)}
+                                style={{
+                                    background: 'rgba(255,255,255,0.1)', border: 'none',
+                                    color: '#8892a4', cursor: 'pointer', fontSize: 11,
+                                    padding: '2px 8px', borderRadius: 4,
+                                }}
+                            >
+                                All
+                            </button>
+                        )}
+                        {activeTab === 'chat' && orgAgents.slice(0, 4).map(cert => (
+                            <button
+                                key={cert}
+                                onClick={() => setFilter(filter === cert ? null : cert)}
+                                style={{
+                                    background: filter === cert ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.05)',
+                                    border: filter === cert ? '1px solid rgba(59,130,246,0.5)' : '1px solid transparent',
+                                    color: filter === cert ? '#3b82f6' : '#5a6478',
+                                    cursor: 'pointer', fontSize: 9,
+                                    padding: '2px 6px', borderRadius: 4,
+                                }}
+                            >
+                                {getAgentName(cert)}
+                            </button>
+                        ))}
+                    </div>
                 </div>
             </div>
 
-            {/* Messages */}
-            <div style={{
-                flex: 1, overflowY: 'auto', fontSize: 13, padding: '8px 12px',
-                display: 'flex', flexDirection: 'column', gap: 4,
-            }}>
-                {filteredMessages.map((m, i) => {
-                    const isOwner = m.sender === 'owner';
-                    const isSystem = m.source === 'system';
-                    const isPrivate = m.target && m.target !== 'org';
+            {/* Chat Messages (public tab) */}
+            {activeTab === 'chat' && (
+                <div style={{
+                    flex: 1, overflowY: 'auto', fontSize: 13, padding: '8px 12px',
+                    display: 'flex', flexDirection: 'column', gap: 4,
+                }}>
+                    {filteredMessages.map((m, i) => {
+                        const isOwner = m.sender === 'owner';
+                        const isSystem = m.source === 'system';
+                        const isPrivate = m.target && m.target !== 'org';
 
-                    if (isSystem) {
+                        if (isSystem) {
+                            return (
+                                <p key={i} style={{ margin: '4px 0', color: '#06b6d4', fontSize: 11, textAlign: 'center' }}>
+                                    {m.text}
+                                </p>
+                            );
+                        }
+
                         return (
-                            <p key={i} style={{ margin: '4px 0', color: '#06b6d4', fontSize: 11, textAlign: 'center' }}>
-                                {m.text}
-                            </p>
+                            <div key={i} style={{
+                                display: 'flex',
+                                justifyContent: isOwner ? 'flex-end' : 'flex-start',
+                                margin: '2px 0',
+                            }}>
+                                <div style={{
+                                    maxWidth: '80%',
+                                    padding: '6px 10px',
+                                    borderRadius: isOwner ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
+                                    backgroundColor: isOwner ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)',
+                                    fontSize: 12,
+                                    lineHeight: 1.4,
+                                }}>
+                                    {!isOwner && (
+                                        <div style={{
+                                            fontSize: 10, color: '#3b82f6', marginBottom: 2,
+                                            display: 'flex', alignItems: 'center', gap: 4,
+                                        }}>
+                                            {getAgentName(m.sender)}
+                                            {isPrivate && (
+                                                <span style={{ color: '#a855f7', fontSize: 9 }}>private</span>
+                                            )}
+                                        </div>
+                                    )}
+                                    {m.text}
+                                    {m.time && (
+                                        <div style={{ fontSize: 9, color: '#5a6478', marginTop: 2, textAlign: 'right' }}>
+                                            {formatTime(m.time)}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
                         );
-                    }
+                    })}
+                    <div ref={endRef} />
+                </div>
+            )}
 
-                    return (
-                        <div key={i} style={{
-                            display: 'flex',
-                            justifyContent: isOwner ? 'flex-end' : 'flex-start',
-                            margin: '2px 0',
-                        }}>
-                            <div style={{
-                                maxWidth: '80%',
+            {/* Team Messages (internal bridge tab) */}
+            {activeTab === 'team' && (
+                <div style={{
+                    flex: 1, overflowY: 'auto', fontSize: 13, padding: '8px 12px',
+                    display: 'flex', flexDirection: 'column', gap: 6,
+                }}>
+                    {teamMessages.length === 0 && (
+                        <p style={{ color: '#5a6478', fontSize: 11, textAlign: 'center', margin: '20px 0' }}>
+                            No team activity yet. Internal bridge messages will appear here.
+                        </p>
+                    )}
+                    {teamMessages.map((m) => {
+                        const isWill = m.sender?.toLowerCase().includes('will');
+                        return (
+                            <div key={m.id} style={{
                                 padding: '6px 10px',
-                                borderRadius: isOwner ? '10px 10px 2px 10px' : '10px 10px 10px 2px',
-                                backgroundColor: isOwner ? 'rgba(59,130,246,0.3)' : 'rgba(255,255,255,0.08)',
+                                borderRadius: 8,
+                                backgroundColor: isWill ? 'rgba(168,85,247,0.15)' : 'rgba(255,255,255,0.05)',
+                                borderLeft: isWill ? '3px solid #a855f7' : '3px solid rgba(255,255,255,0.1)',
                                 fontSize: 12,
                                 lineHeight: 1.4,
                             }}>
-                                {!isOwner && (
-                                    <div style={{
-                                        fontSize: 10, color: '#3b82f6', marginBottom: 2,
-                                        display: 'flex', alignItems: 'center', gap: 4,
+                                <div style={{
+                                    display: 'flex', justifyContent: 'space-between',
+                                    alignItems: 'center', marginBottom: 3,
+                                }}>
+                                    <span style={{
+                                        fontSize: 10,
+                                        color: isWill ? '#a855f7' : '#3b82f6',
+                                        fontWeight: 600,
                                     }}>
-                                        {getAgentName(m.sender)}
-                                        {isPrivate && (
-                                            <span style={{ color: '#a855f7', fontSize: 9 }}>private</span>
-                                        )}
-                                    </div>
-                                )}
-                                {m.text}
-                                {m.time && (
-                                    <div style={{ fontSize: 9, color: '#5a6478', marginTop: 2, textAlign: 'right' }}>
-                                        {formatTime(m.time)}
-                                    </div>
-                                )}
+                                        {m.sender}
+                                    </span>
+                                    <span style={{ fontSize: 9, color: '#5a6478' }}>
+                                        {m.changeType}
+                                    </span>
+                                </div>
+                                <div style={{ color: '#e2e8f0' }}>
+                                    {m.summary}
+                                </div>
+                                <div style={{
+                                    fontSize: 9, color: '#5a6478', marginTop: 3,
+                                    display: 'flex', justifyContent: 'space-between',
+                                }}>
+                                    <span>{m.table}</span>
+                                    <span>{formatTime(m.time)}</span>
+                                </div>
                             </div>
-                        </div>
-                    );
-                })}
-                <div ref={endRef} />
-            </div>
+                        );
+                    })}
+                    <div ref={teamEndRef} />
+                </div>
+            )}
 
             {/* Input */}
             <div style={{

@@ -35,10 +35,16 @@ colyseusServer.listen(PORT).then(() => {
     console.log(`[Server] AgentOffice Engine listening on ws://localhost:${PORT}`);
     console.log(`[Server] Rooms: office, public_square`);
     if (process.env.SUPABASE_URL) {
-        console.log(`[Server] Supabase: ${process.env.SUPABASE_URL}`);
+        console.log(`[Server] Public Supabase: ${process.env.SUPABASE_URL}`);
     }
     else {
         console.warn(`[Server] WARNING: No SUPABASE_URL set — PublicSquareRoom will not connect to bridge`);
+    }
+    if (process.env.INTERNAL_SUPABASE_URL) {
+        console.log(`[Server] Internal Supabase: ${process.env.INTERNAL_SUPABASE_URL}`);
+    }
+    else {
+        console.warn(`[Server] WARNING: No INTERNAL_SUPABASE_URL set — internal bridge disabled`);
     }
 });
 //# sourceMappingURL=index.js.map

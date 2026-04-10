@@ -471,6 +471,11 @@ export class OfficeScene extends Phaser.Scene {
                     eventBus.dispatchEvent(new CustomEvent('chat-message', { detail: message }));
                 });
 
+                // Bind team (internal bridge) bus
+                this.room!.onMessage('team-message', (message: any) => {
+                    eventBus.dispatchEvent(new CustomEvent('team-message', { detail: message }));
+                });
+
                 state.agents.onAdd((agent: AgentState, sessionId: string) => {
                     console.log(`[Colyseus] Agent added: ${agent.name} at (${agent.x}, ${agent.y})`);
                     const container = this.add.container(agent.x * 16, agent.y * 16);

@@ -3,6 +3,7 @@ import { OfficeState } from '../schema/OfficeState';
 export declare class PublicSquareRoom extends Room<OfficeState> {
     maxClients: number;
     private bridge;
+    private internalBridge;
     private agentSpriteMap;
     private spriteCounter;
     private agentDeskMap;
@@ -15,6 +16,8 @@ export declare class PublicSquareRoom extends Room<OfficeState> {
     private wanderCooldown;
     private grid;
     private agentPaths;
+    private meetingActive;
+    private meetingTimeout;
     onCreate(options: any): Promise<void>;
     private getAgentSprite;
     private getAgentDesk;
@@ -24,6 +27,11 @@ export declare class PublicSquareRoom extends Room<OfficeState> {
     private handleMessage;
     private applySpeechBubble;
     private triggerDMInteraction;
+    private handleDigestEntry;
+    /** Match a changed_by string (e.g. "BRX [a6cd3845]") to a cert_id */
+    private resolveAgentCert;
+    /** Move agents to meeting room when internal bridge is active */
+    private triggerMeetingHuddle;
     private handleSessionChange;
     private updateAgentVisualState;
     update(delta: number): void;

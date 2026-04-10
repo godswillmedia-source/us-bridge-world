@@ -4,6 +4,7 @@ exports.PublicSquareRoom = void 0;
 const colyseus_1 = require("colyseus");
 const OfficeState_1 = require("../schema/OfficeState");
 const SupabaseBridge_1 = require("../bridge/SupabaseBridge");
+const InternalBridge_1 = require("../bridge/InternalBridge");
 const core_1 = require("@agent-office/core");
 /**
  * PublicSquareRoom — A Colyseus room that mirrors the US Bridge.
@@ -43,6 +44,30 @@ const DESK_POSITIONS = [
     { x: 20, y: 6 }, // top center
     { x: 28, y: 28 }, // near coffee
 ];
+// Meeting room area — agents huddle here during internal bridge activity
+const MEETING_ROOM_POSITIONS = [
+    { x: 6, y: 6 }, { x: 8, y: 6 }, { x: 10, y: 6 },
+    { x: 6, y: 8 }, { x: 8, y: 8 }, { x: 10, y: 8 },
+    { x: 6, y: 10 }, { x: 8, y: 10 }, { x: 10, y: 10 },
+    { x: 12, y: 7 },
+];
+// Map known bridge changed_by patterns to cert_ids for agent matching
+const BRIDGE_AGENT_MAP = {
+    'brx': 'USC-T2-brax',
+    'brax': 'USC-T2-brax',
+    'ss': 'USC-T2-stylesync',
+    'stylesync': 'USC-T2-stylesync',
+    'gwm': 'USC-T2-gwm',
+    'it': 'USC-T2-it',
+    'gwai': 'USC-T2-gwai',
+    'bai': 'USC-T2-bai',
+    'sales': 'USC-T2-sales',
+    'faqs': 'USC-T2-sales',
+    'opc': 'USC-T2-openclaw',
+    'openclaw': 'USC-T2-openclaw',
+    'will': 'USC-T2-will',
+    'cp': 'USC-T1-cp',
+};
 class PublicSquareRoom extends colyseus_1.Room {
     constructor() {
         super(...arguments);
@@ -65,6 +90,9 @@ class PublicSquareRoom extends colyseus_1.Room {
         this.wanderCooldown = new Map();
         // Current paths for each agent (cert_id → remaining path points)
         this.agentPaths = new Map();
+        // Track meeting room huddle state
+        this.meetingActive = false;
+        this.meetingTimeout = null;
     }
     async onCreate(options) {
         this.setState(new OfficeState_1.OfficeState());
@@ -146,7 +174,35 @@ class PublicSquareRoom extends colyseus_1.Room {
         }
         // 4. Start Realtime subscriptions
         this.bridge.subscribe();
-        // 5. Message handlers from browser clients
+        // 5. Connect to INTERNAL bridge (Will's private team comms)
+        const internalUrl = process.env.INTERNAL_SUPABASE_URL;
+        const internalKey = process.env.INTERNAL_SUPABASE_ANON_KEY;
+        if (internalUrl && internalKey) {
+            console.log('[PublicSquare] Connecting to Internal Bridge...');
+            this.internalBridge = new InternalBridge_1.InternalBridge(internalUrl, internalKey, {
+                onDigestEntry: (entry) => this.handleDigestEntry(entry),
+            });
+            // Load recent internal digest
+            const digest = await this.internalBridge.fetchRecentDigest(20);
+            console.log(`[PublicSquare] Loaded ${digest.length} internal digest entries`);
+            // Send last few as initial team chat messages
+            for (const entry of digest.slice(-5)) {
+                this.broadcast('team-message', {
+                    id: entry.id,
+                    sender: entry.changed_by,
+                    summary: entry.summary,
+                    changeType: entry.change_type,
+                    table: entry.table_name,
+                    time: entry.created_at,
+                });
+            }
+            // Start internal realtime
+            this.internalBridge.subscribe();
+        }
+        else {
+            console.warn('[PublicSquare] No INTERNAL_SUPABASE_URL/KEY — internal bridge disabled');
+        }
+        // 6. Message handlers from browser clients
         this.onMessage('chat', (client, message) => {
             console.log(`[PublicSquare] Chat from viewer: ${message.text}`);
             this.broadcast('chat', { sender: 'Viewer', text: message.text });
@@ -260,6 +316,93 @@ class PublicSquareRoom extends colyseus_1.Room {
             this.walkTargets.delete(fromCert);
             this.walkTargets.delete(targetCert);
         }, 10000);
+    }
+    // --- Internal Bridge (Team Comms) ---
+    handleDigestEntry(entry) {
+        // Broadcast to UI team tab
+        this.broadcast('team-message', {
+            id: entry.id,
+            sender: entry.changed_by,
+            summary: entry.summary,
+            changeType: entry.change_type,
+            table: entry.table_name,
+            time: entry.created_at,
+        });
+        // Resolve which agent posted this (match changed_by to a cert_id)
+        const certId = this.resolveAgentCert(entry.changed_by);
+        // Trigger meeting room huddle — agents walk to meeting room
+        this.triggerMeetingHuddle(certId);
+        // If the posting agent exists, show activity indicator
+        if (certId) {
+            const agentState = this.state.agents.get(certId);
+            if (agentState) {
+                agentState.action = 'talk';
+                agentState.thought = '(team meeting)';
+                // Clear after 6 seconds
+                const existingTimeout = this.speechBubbles.get(certId);
+                if (existingTimeout)
+                    clearTimeout(existingTimeout);
+                this.speechBubbles.set(certId, setTimeout(() => {
+                    const state = this.state.agents.get(certId);
+                    if (state) {
+                        state.thought = '';
+                        state.action = 'idle';
+                    }
+                    this.speechBubbles.delete(certId);
+                }, 6000));
+            }
+        }
+        // Log to system
+        this.broadcast('chat', {
+            sender: 'Bridge',
+            text: `[Team] ${entry.changed_by}: ${entry.summary.slice(0, 80)}`,
+        });
+    }
+    /** Match a changed_by string (e.g. "BRX [a6cd3845]") to a cert_id */
+    resolveAgentCert(changedBy) {
+        if (!changedBy)
+            return null;
+        const lower = changedBy.toLowerCase();
+        // Check direct cert_id references
+        for (const [key, certId] of Object.entries(BRIDGE_AGENT_MAP)) {
+            if (lower.includes(key)) {
+                // Only return if the agent exists in our state
+                if (this.state.agents.has(certId))
+                    return certId;
+            }
+        }
+        // Check if changed_by matches any agent name
+        for (const [certId, agent] of this.state.agents.entries()) {
+            if (lower.includes(agent.name.toLowerCase()))
+                return certId;
+        }
+        return null;
+    }
+    /** Move agents to meeting room when internal bridge is active */
+    triggerMeetingHuddle(activeCertId) {
+        this.meetingActive = true;
+        // Move the posting agent to meeting room
+        if (activeCertId) {
+            const idx = Array.from(this.state.agents.keys()).indexOf(activeCertId);
+            const meetingPos = MEETING_ROOM_POSITIONS[idx % MEETING_ROOM_POSITIONS.length];
+            this.walkTargets.set(activeCertId, meetingPos);
+        }
+        // Clear meeting after 30 seconds of no new activity
+        if (this.meetingTimeout)
+            clearTimeout(this.meetingTimeout);
+        this.meetingTimeout = setTimeout(() => {
+            this.meetingActive = false;
+            // Clear walk targets for agents in meeting room
+            for (const certId of this.state.agents.keys()) {
+                const target = this.walkTargets.get(certId);
+                if (target) {
+                    const isMeetingPos = MEETING_ROOM_POSITIONS.some(p => p.x === target.x && p.y === target.y);
+                    if (isMeetingPos) {
+                        this.walkTargets.delete(certId);
+                    }
+                }
+            }
+        }, 30000);
     }
     // --- Session Handling ---
     handleSessionChange(session) {
@@ -419,7 +562,11 @@ class PublicSquareRoom extends colyseus_1.Room {
         for (const timeout of this.speechBubbles.values()) {
             clearTimeout(timeout);
         }
+        if (this.meetingTimeout)
+            clearTimeout(this.meetingTimeout);
         await this.bridge.dispose();
+        if (this.internalBridge)
+            await this.internalBridge.dispose();
     }
 }
 exports.PublicSquareRoom = PublicSquareRoom;
