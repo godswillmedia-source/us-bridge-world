@@ -41,6 +41,7 @@ export function ChatPanel() {
     ]);
     const [teamMessages, setTeamMessages] = useState<TeamMessage[]>([]);
     const [activeTab, setActiveTab] = useState<'chat' | 'team'>('chat');
+    const [minimized, setMinimized] = useState(false);
     const [input, setInput] = useState('');
     const [filter, setFilter] = useState<string | null>(null); // null = all, cert_id = private
     const [orgId, setOrgId] = useState<string | null>(null);
@@ -247,9 +248,39 @@ export function ChatPanel() {
         return parts.length >= 3 ? parts.slice(2).join('-').toUpperCase() : certId;
     }
 
+    // Minimized state — show small floating button
+    if (minimized) {
+        return (
+            <div
+                onClick={() => setMinimized(false)}
+                style={{
+                    position: 'absolute', right: 12, bottom: 12,
+                    width: 48, height: 48, borderRadius: '50%',
+                    backgroundColor: 'rgba(10,14,23,0.92)',
+                    border: '2px solid rgba(59,130,246,0.4)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', zIndex: 15,
+                    backdropFilter: 'blur(8px)',
+                    boxShadow: '0 2px 12px rgba(0,0,0,0.4)',
+                }}
+            >
+                <span style={{ fontSize: 20 }}>💬</span>
+                {teamMessages.length > 0 && (
+                    <span style={{
+                        position: 'absolute', top: -2, right: -2,
+                        width: 12, height: 12, borderRadius: '50%',
+                        backgroundColor: '#a855f7',
+                    }} />
+                )}
+            </div>
+        );
+    }
+
     return (
         <div style={{
-            position: 'absolute', right: 20, bottom: 20, width: 320, height: 450,
+            position: 'absolute', right: 8, bottom: 8,
+            width: 'min(320px, calc(100vw - 16px))',
+            height: 'min(400px, calc(100vh - 80px))',
             backgroundColor: 'rgba(10,14,23,0.92)', color: 'white', borderRadius: 12,
             display: 'flex', flexDirection: 'column',
             border: '1px solid rgba(59,130,246,0.2)',
@@ -297,7 +328,18 @@ export function ChatPanel() {
                             )}
                         </button>
                     </div>
-                    <div style={{ display: 'flex', gap: 6 }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                        <button
+                            onClick={() => setMinimized(true)}
+                            style={{
+                                background: 'rgba(255,255,255,0.1)', border: 'none',
+                                color: '#8892a4', cursor: 'pointer', fontSize: 14,
+                                padding: '2px 8px', borderRadius: 4, lineHeight: 1,
+                            }}
+                            title="Minimize"
+                        >
+                            _
+                        </button>
                         {activeTab === 'chat' && filter && (
                             <button
                                 onClick={() => setFilter(null)}
