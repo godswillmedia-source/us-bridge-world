@@ -382,6 +382,43 @@ export class OfficeScene extends Phaser.Scene {
             this.cameras.main.setZoom(2);
             this.cameras.main.centerOn(gridSize / 2, gridSize / 2);
 
+            // --- PINCH TO ZOOM (mobile) + SCROLL WHEEL ZOOM (desktop) ---
+            const MIN_ZOOM = 0.5;
+            const MAX_ZOOM = 4;
+
+            // Scroll wheel zoom (desktop)
+            this.input.on('wheel', (_pointer: any, _gameObjects: any, _deltaX: number, deltaY: number) => {
+                const cam = this.cameras.main;
+                const newZoom = Phaser.Math.Clamp(cam.zoom - deltaY * 0.002, MIN_ZOOM, MAX_ZOOM);
+                cam.setZoom(newZoom);
+            });
+
+            // Pinch to zoom (mobile)
+            let pinchStartDist = 0;
+            let pinchStartZoom = 1;
+
+            this.input.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+                if (this.input.pointer1.isDown && this.input.pointer2.isDown) {
+                    const p1 = this.input.pointer1;
+                    const p2 = this.input.pointer2;
+                    pinchStartDist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+                    pinchStartZoom = this.cameras.main.zoom;
+                }
+            });
+
+            this.input.on('pointermove', () => {
+                if (this.input.pointer1.isDown && this.input.pointer2.isDown) {
+                    const p1 = this.input.pointer1;
+                    const p2 = this.input.pointer2;
+                    const dist = Phaser.Math.Distance.Between(p1.x, p1.y, p2.x, p2.y);
+                    if (pinchStartDist > 0) {
+                        const scale = dist / pinchStartDist;
+                        const newZoom = Phaser.Math.Clamp(pinchStartZoom * scale, MIN_ZOOM, MAX_ZOOM);
+                        this.cameras.main.setZoom(newZoom);
+                    }
+                }
+            });
+
             if (this.input.keyboard) {
                 this.cursors = this.input.keyboard.createCursorKeys();
             }
